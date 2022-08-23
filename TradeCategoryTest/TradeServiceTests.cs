@@ -13,13 +13,15 @@ namespace TradeCategoryTest
         private Trade CreateFakeTrade(
             bool expired = false,
             bool publicSector = false,
-            bool valueLessThan1Million = false)
+            bool valueLessThan1Million = false,
+            bool isPEP = false)
         {
             return new Trade
             {
                 Value = (valueLessThan1Million ? 400000 : 2000000),
                 ClientSector = (publicSector ? "Public" : "Private"),
-                NextPaymentDate = _referenceDate.AddDays((expired ? -31 : 1))
+                NextPaymentDate = _referenceDate.AddDays((expired ? -31 : 1)),
+                IsPoliticallyExposed = isPEP
             };
         }
 
@@ -35,6 +37,18 @@ namespace TradeCategoryTest
             Trade? trade = _tradeService.GetTradeFromInput(input);
             Assert.NotNull(trade);
             Assert.Equal(valueExpected, trade?.Value);
+        }
+
+        [
+            Theory,
+            InlineData("2000000 Private 12/29/2025 true", true),
+            InlineData("400000 Public 07/01/2020 false", false)
+        ]
+        public void GetTradeFromInput_InputCorrectWithIsPoliticallyExposedProp_ReturnTrade(string input, bool isPoliticallyExposedExpected)
+        {
+            Trade? trade = _tradeService.GetTradeFromInput(input);
+            Assert.NotNull(trade);
+            Assert.Equal(isPoliticallyExposedExpected, trade!.IsPoliticallyExposed);
         }
 
         [Fact]
@@ -93,6 +107,21 @@ namespace TradeCategoryTest
 
         [
             Theory,
+            InlineData("2000000 Private 12/29/2025  "),
+            InlineData("400000 Public 07/01/2020 2"),
+            InlineData("5000000 Public 01/02/2024 01/02/2024"),
+            InlineData("3000000 Public 10/26/2023 aaa"),
+            InlineData("5000000 Public 01/02/2024 1"),
+            InlineData("3000000 Public 10/26/2023 0")
+        ]
+        public void GetTradeFromInput_FourthColumnNotIsValidBool_ReturnNull(string input)
+        {
+            Trade? trade = _tradeService.GetTradeFromInput(input);
+            Assert.Null(trade);
+        }
+
+        [
+            Theory,
             InlineData("Private"),
             InlineData("Public")
         ]
@@ -115,20 +144,34 @@ namespace TradeCategoryTest
             Assert.False(result, "The result must be False");
         }
 
+        [Fact]
+        public void GetTradeCategory_TradeCategorizedAsExpired_ReturnExpiredCategory()
+        {
+            Trade trade = CreateFakeTrade(expired: true);
+            string result = _tradeService.GetTradeCategory(_referenceDate, trade);
+            Assert.Equal("EXPIRED", result);
+        }
+
         [
             Theory,
-            InlineData(true, false, "EXPIRED"),
-            InlineData(false, false, "HIGHRISK"),
-            InlineData(false, true, "MEDIUMRISK")
+            InlineData(false, "HIGHRISK"),
+            InlineData(true, "MEDIUMRISK")
         ]
-        public void GetTradeCategory_ExistingCategories_ReturnCategory(
-            bool expired,
+        public void GetTradeCategory_TradeCategorizedAsHighOrMediumRisk_ReturnCategory(
             bool publicSector,
             string expected)
         {
-            Trade trade = CreateFakeTrade(expired, publicSector);
+            Trade trade = CreateFakeTrade(publicSector: publicSector);
             string result = _tradeService.GetTradeCategory(_referenceDate, trade);
             Assert.Equal(expected, result);
+        }
+
+        [Fact]
+        public void GetTradeCategory_TradeCategorizedAsPEP_ReturnPEPCategory()
+        {
+            Trade trade = CreateFakeTrade(valueLessThan1Million: true, isPEP: true);
+            string result = _tradeService.GetTradeCategory(_referenceDate, trade);
+            Assert.Equal("PEP", result);
         }
 
         [Fact]

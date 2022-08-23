@@ -11,6 +11,7 @@ namespace TradeCategoryApp.Classes
 
             double amount;
             DateTime nextPaymentDate;
+            bool isPEP = false;
             CultureInfo culture = CultureInfo.CreateSpecificCulture("en-US");
             string[] props = input.Split(' ');
 
@@ -25,12 +26,16 @@ namespace TradeCategoryApp.Classes
                 return null;
             if (!ValidSector(sector))
                 return null;
+            if (props.Length > 3)
+                if (!Boolean.TryParse(props[3], out isPEP))
+                    return null;
             
             Trade trade = new Trade
             {
                 Value = amount,
                 ClientSector = sector,
-                NextPaymentDate = nextPaymentDate
+                NextPaymentDate = nextPaymentDate,
+                IsPoliticallyExposed = isPEP
             };
 
             return trade;
@@ -51,7 +56,8 @@ namespace TradeCategoryApp.Classes
                 
             AbstractCategoryHandler handler = new ExpiredCategoryHandler(referenceDate);
             handler.SetNext(new HighRiskCategoryHandler())
-                   .SetNext(new MediumRiskCategoryHandler());
+                   .SetNext(new MediumRiskCategoryHandler())
+                   .SetNext(new PEPCategoryHandler());
 
             return handler.GetCategoryFromTrade(trade);
         }
